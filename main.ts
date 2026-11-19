@@ -12,7 +12,8 @@ const C = {
   sunRing: '#FF9E2C', skyline: '#2B1055', palm: '#241040', sidewalk: '#7A4A9E',
   road: '#2E2E44', car: '#FF2E88', carShade: '#D61E6E', glass: '#BFE8FF',
   interior: '#1A1A2E', jasonSkin: '#E8B88A', jasonJacket: '#22304F',
-  luciaSkin: '#C98A5E', luciaTop: '#D7263D', paid: '#22C55E', tail: '#FF1F4D'
+  luciaSkin: '#C98A5E', luciaTop: '#D7263D', paid: '#22C55E', tail: '#FF1F4D',
+  neon: '#00E5FF', cloud: '#FF9EB0', beam: '#FFE9A8', smoke: '#C9C9D6', cash: '#86EFAC'
 };
 const rgb = (hex: string): RGB => [
   parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)
@@ -179,36 +180,118 @@ function glyphPixels(text: string, cx: number, top: number, capHeight: number, m
 
 function text(textValue: string, cx: number, top: number, capHeight: number, fill: RGB, outline: number, maxWidth: number, shadow = false) {
   const pixels = glyphPixels(textValue, cx, top, capHeight, maxWidth);
-  if (shadow) for (const [x, y, w, h] of pixels) rect(x + 6, y + 7, w, h, rgb(C.magenta));
+  paintText(pixels, fill, outline, shadow);
+}
+
+function paintText(pixels: GlyphPixel[], fill: RGB, outline: number, shadow: boolean) {
+  if (shadow) for (const [x, y, w, h] of pixels) {
+    rect(x - outline + 5, y - outline + 6, w + outline * 2, h + outline * 2, rgb(C.magenta));
+  }
   for (const [x, y, w, h] of pixels) rect(x - outline, y - outline, w + outline * 2, h + outline * 2, ink);
   for (const [x, y, w, h] of pixels) rect(x, y, w, h, fill);
 }
 
+function headline(value: string, top: number, cap: number, fill: RGB, shadow = false) {
+  const outline = 6, shadowReach = shadow ? 5 : 0;
+  for (let height = cap; ; height = Math.max(48, height - 4)) {
+    const pixels = glyphPixels(value, W / 2, top, height);
+    const left = Math.min(...pixels.map(([x]) => x));
+    const right = Math.max(...pixels.map(([x, , width]) => x + width));
+    if (right - left + 2 * outline + shadowReach <= 950) {
+      paintText(pixels, fill, outline, shadow);
+      return;
+    }
+    if (height === 48) throw new Error(`Headline exceeds 950 px at the 48 px floor: ${value}`);
+  }
+}
+
+function sparkle(cx: number, cy: number, s: number, fill: RGB) {
+  const d = s * .35;
+  polygon([[cx, cy-s], [cx+d, cy-d], [cx+s, cy], [cx+d, cy+d],
+    [cx, cy+s], [cx-d, cy+d], [cx-s, cy], [cx-d, cy-d]], fill);
+}
+
+function drawSkyDetails() {
+  for (const [x, y, s] of [[170,185,10],[255,230,7],[330,180,8],[430,240,7],
+    [520,185,9],[880,210,7],[60,300,8],[985,300,7],[610,300,6]]) sparkle(x, y, s, rgb(C.white));
+  for (const [x, y, rx, ry] of [[180,285,70,18],[230,275,55,16],[135,278,40,13],
+    [905,330,60,15],[945,322,42,13],[865,324,35,11]]) ellipse(x, y, rx, ry, rgb(C.cloud));
+}
+
+function drawHelicopter() {
+  polygon([[150,252],[192,252],[228,335],[114,335]], rgb(C.beam));
+  rect(205, 234, 57, 12, ink);
+  rect(252, 222, 8, 24, ink);
+  ellipse(170, 240, 38, 14, ink);
+  thickLine([118,226], [222,226], 5, ink);
+  thickLine([252,214], [262,230], 4, ink);
+  for (const x of [140, 200]) thickLine([x,254], [x,264], 4, ink);
+  thickLine([132,264], [208,264], 4, ink);
+  ellipse(148, 238, 12, 7, rgb(C.glass));
+  circle(138, 240, 5, rgb(C.tail));
+}
+
 function scene() {
   gradient();
+  drawSkyDetails();
   outlinedCircle(700, 470, 120, rgb(C.yellow), rgb(C.sunRing), 10);
-  rect(580, 470, 240, 10, rgb(C.horizon));
-  rect(580, 505, 240, 14, rgb(C.horizon));
-  rect(580, 540, 240, 18, rgb(C.horizon));
-  const buildings: Array<[number, number, number]> = [[0,120,150],[140,120,220],[280,80,120],[380,140,190],[760,120,110],[900,124,240]];
-  for (const [x, width, height] of buildings) rect(x, 620 - height, width, height, rgb(C.skyline));
-  for (const [x, width, height] of [[152,96,220],[392,116,190]]) {
-    for (let yy = 620 - height + 18; yy < 608; yy += 34) for (let xx = x + 14; xx < x + width - 8; xx += 25) {
-      rect(xx, yy, 8, 12, rgb(C.yellow));
-    }
+  for (const [x, y, width, height] of [[612,385,176,9],[596,415,208,12],[588,445,224,15]]) {
+    rect(x, Math.ceil(y - height / 2), width, height, rgb(C.pinkSky));
   }
+  drawHelicopter();
+  drawSkyline();
   palm(60, 380, 240);
   palm(970, 420, 200);
-  rect(0, 620, W, 30, rgb(C.sidewalk));
-  rect(0, 650, W, H - 650, rgb(C.road));
+  drawRoad();
   drawCar();
   drawGhost();
   drawPeople();
-  drawStars();
   drawCoins();
-  // Reserve stroke and shadow pixels inside each headline's fit range.
-  text('OUR GETAWAY DRIVER', 512, 55, 88, rgb(C.white), 8, 922, true);
-  text('PAID ON MAKE.FUN', 512, 905, 80, rgb(C.yellow), 8, 784);
+  drawStars();
+  headline('OUR GETAWAY DRIVER', 50, 60, rgb(C.white), true);
+  headline('PAID ON MAKE.FUN', 910, 58, rgb(C.yellow));
+}
+
+function drawSkyline() {
+  const buildings: Array<[number, number, number]> = [[0,120,150],[140,120,220],[280,80,120],[380,140,190],[760,120,110],[900,124,240]];
+  for (const [x, width, height] of buildings) rect(x, 620 - height, width, height, rgb(C.skyline));
+  const grids = [[155,425,4,6],[395,455,5,5],[915,405,4,7],[20,495,4,4]];
+  for (const [x, y, columns, rows] of grids) {
+    for (let row = 0; row < rows; row++) for (let col = 0; col < columns; col++) {
+      const color = (row * columns + col + 1) % 3 === 0 ? C.neon : C.yellow;
+      rect(x + col * 25, y + row * 30, 8, 12, rgb(color));
+    }
+  }
+  rect(243, 417, 18, 146, ink);
+  rect(246, 420, 12, 140, rgb(C.neon));
+  for (const y of [430, 460, 490]) rect(232, y, 26, 8, rgb(C.neon));
+  rect(387, 433, 126, 18, ink);
+  rect(390, 436, 120, 12, rgb(C.magenta));
+  rect(400, 456, 100, 6, rgb(C.yellow));
+  rect(410, 470, 80, 6, rgb(C.yellow));
+  const zigzag: Point[] = [[915,400],[935,420],[955,400],[975,420],[995,400]];
+  for (let i = 1; i < zigzag.length; i++) thickLine(zigzag[i - 1], zigzag[i], 6, rgb(C.yellow));
+  for (const [x, roof, tip] of [[200,400,360],[960,380,345]]) {
+    thickLine([x,roof], [x,tip], 4, ink);
+    circle(x, tip - 4, 5, rgb(C.tail));
+  }
+}
+
+function drawRoad() {
+  rect(0, 620, W, 30, rgb(C.sidewalk));
+  circle(995, 636, 6, rgb(C.tail));
+  circle(978, 636, 6, rgb(C.neon));
+  rect(0, 650, W, H - 650, rgb(C.road));
+  ellipse(512, 888, 430, 10, rgb(C.darkMagenta));
+  rect(640, 882, 120, 6, rgb(C.orange));
+  rect(640, 888, 120, 6, rgb(C.pinkSky));
+  rect(640, 894, 120, 8, rgb(C.horizon));
+  const left = [C.neon, C.magenta, C.yellow, C.neon];
+  left.forEach((color, i) => rect(15, 700 + i * 40, 70, 6, rgb(color)));
+  rect(950, 810, 55, 5, rgb(C.magenta));
+  rect(950, 845, 55, 5, rgb(C.neon));
+  rect(950, 878, 55, 5, rgb(C.yellow));
+  polygon([[95,752],[95,788],[0,802],[0,738]], rgb(C.beam));
 }
 
 function palm(cx: number, crownY: number, trunkLength: number) {
@@ -232,7 +315,8 @@ function drawStars() {
 }
 
 function drawCar() {
-  ellipse(510, 852, 390, 28, rgb(C.darkMagenta));
+  thickLine([905,690], [905,638], 4, ink);
+  circle(905, 634, 6, rgb(C.tail));
   roundRect(95, 690, 840, 135, 24, ink);
   roundRect(103, 698, 824, 119, 18, rgb(C.car));
   roundRect(103, 800, 824, 17, 8, rgb(C.carShade));
@@ -240,14 +324,29 @@ function drawCar() {
   polygon([[341,683],[380,613],[448,613],[424,683]], rgb(C.glass));
   rect(462, 632, 418, 58, ink);
   rect(470, 640, 402, 50, rgb(C.interior));
+  thickLine([315,682], [315,696], 5, ink);
+  rect(295, 655, 40, 32, ink);
+  rect(300, 660, 30, 22, rgb(C.car));
+  thickLine([565,700], [565,820], 4, ink);
+  rect(580, 738, 45, 12, ink);
+  rect(97, 792, 44, 29, ink);
+  for (const x of [110,119,128]) thickLine([x,798], [x,815], 3, rgb(C.yellow));
+  rect(95, 822, 840, 10, ink);
   for (const x of [270, 770]) {
     circle(x, 825, 55, ink);
     circle(x, 825, 24, rgb(C.white));
     circle(x, 825, 8, ink);
+    for (const [dx, dy] of [[12,0],[-12,0],[0,12],[0,-12]]) circle(x + dx, 825 + dy, 4, ink);
   }
   rect(95, 760, 20, 20, rgb(C.yellow));
   rect(915, 760, 20, 20, rgb(C.tail));
-  for (const [x, y, length] of [[945,690,75],[950,730,65],[948,770,62]]) thickLine([x,y],[x+length,y],8,rgb(C.white));
+  for (const [x, y, end] of [[945,680,1020],[950,715,1018],[948,750,1012],
+    [952,785,1010],[950,820,1005]]) thickLine([x,y], [end,y], 8, rgb(C.white));
+  polygon([[935,822],[968,838],[935,854]], rgb(C.sunRing));
+  polygon([[935,830],[955,838],[935,846]], rgb(C.yellow));
+  for (const [x, y, r] of [[845,855,20],[875,835,24],[905,858,18],[175,860,14]]) {
+    circle(x, y, r, rgb(C.smoke));
+  }
   rect(830, 786, 110, 38, ink);
   rect(834, 790, 102, 30, rgb(C.white));
   text('GTA VI', 885, 794, 26, ink, 0, 102);
@@ -267,20 +366,14 @@ function drawGhost() {
     contour.push([x, y]);
   }
   contour.push([285, 690]);
-  for (let i = 0; i <= 24; i++) {
-    const a = Math.PI + Math.PI * i / 24;
-    contour.push([390 + Math.cos(a) * 105, 545 + Math.sin(a) * 105]);
-  }
   polygon(contour, white);
-  for (let i = 0; i < contour.length - 1; i++) thickLine(contour[i], contour[i + 1], 10, outline);
-  for (const cx of [355, 425]) polygon([
-    [cx,505],[cx+4,516],[cx+15,520],[cx+4,524],
-    [cx,535],[cx-4,524],[cx-15,520],[cx-4,516]
-  ], outline);
+  for (let i = 0; i < contour.length; i++) thickLine(contour[i], contour[(i + 1) % contour.length], 10, outline);
+  for (const cx of [355, 425]) sparkle(cx, 520, 18, outline);
   circle(330, 685, 40, outline);
   circle(330, 685, 32, white);
   thickLine([330,685],[305,665],8,outline);
   thickLine([330,685],[352,665],8,outline);
+  thickLine([330,685], [330,645], 8, outline);
   thickLine([470,630],[545,515],34,outline);
   thickLine([470,630],[545,515],23,white);
   outlinedCircle(330, 660, 18, white, outline, 5);
@@ -292,8 +385,8 @@ function drawGhost() {
 
 function drawPeople() {
   const black = ink;
-  text('JASON', 620, 507, 34, rgb(C.white), 3, 112);
-  text('LUCIA', 760, 507, 34, rgb(C.white), 3, 112);
+  text('JASON', 618, 503, 34, rgb(C.white), 5, 112);
+  text('LUCIA', 762, 503, 34, rgb(C.white), 5, 112);
   // Lucia's long hair sits behind her face and shoulders.
   ellipse(760, 607, 47, 58, black);
   rect(715, 585, 90, 78, black);
@@ -316,10 +409,19 @@ function drawPeople() {
 }
 
 function drawCoins() {
-  for (const [x, y, r] of [[970,600,24],[990,700,20],[965,790,18],[880,560,20]]) {
+  for (const [x, y, r] of [[823,459,15],[885,550,20],[930,472,18],[968,560,22],
+    [992,652,18],[915,695,15],[972,742,20],[135,585,18],[92,498,16]]) {
     outlinedCircle(x, y, r, rgb(C.yellow), ink, 5);
-    text('$', x, y - r * .55, 24, ink, 0, r * 1.5);
+    text('$', x, y - 12, 24, ink, 0, r * 1.5);
   }
+  banknote([[860,430],[910,418],[922,440],[872,452]], [891,435], rgb(C.paid));
+  banknote([[180,470],[225,460],[235,480],[190,490]], [207,475], rgb(C.cash));
+}
+
+function banknote(points: Point[], center: Point, fill: RGB) {
+  polygon(points, fill);
+  for (let i = 0; i < points.length; i++) thickLine(points[i], points[(i + 1) % points.length], 4, ink);
+  text('$', center[0], center[1] - 10, 20, ink, 0, 20);
 }
 
 const CRC_TABLE = new Uint32Array(256);
